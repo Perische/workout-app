@@ -1,4 +1,4 @@
-from app import app, db
+from app import app
 from models import Workout, Exercise, WorkoutExercise
 
 def seed_database():
