@@ -36,7 +36,9 @@ def get_request_data():
 
 
 def error_response(message, status_code):
+    """Return a consistent JSON error response."""
     return jsonify({"error": message}), status_code
+
 
 @app.route("/workouts", methods=["GET"])
 def get_workouts():
@@ -98,7 +100,6 @@ def delete_workout(workout_id):
         return error_response("Could not delete workout.", 409)
 
 
-
 @app.route("/exercises", methods=["GET"])
 def get_exercises():
     exercises = Exercise.query.order_by(Exercise.id).all()
@@ -117,11 +118,11 @@ def get_exercise(exercise_id):
     result["workouts"] = [
         {
             "id": association.workout.id,
-            "date": association.workout.date.isoformat(),
-            "duration_minutes": association.workout.duration_minutes,
+            "name": association.workout.name,
+            "description": association.workout.description,
             "reps": association.reps,
             "sets": association.sets,
-            "duration_seconds": association.duration_seconds,
+            "duration_minutes": association.duration_minutes,
         }
         for association in exercise.workout_exercises
     ]
@@ -151,8 +152,8 @@ def create_exercise():
     except IntegrityError:
         db.session.rollback()
         return error_response(
-            "An exercise with this name and category may already exist.",
-            409,
+            "Exercise data violates a database constraint.",
+            400,
         )
 
 
@@ -190,7 +191,7 @@ def add_exercise_to_workout(workout_id, exercise_id):
     try:
         data = workout_exercise_schema.load(get_request_data())
 
-        # IDs come from the URL, not from the request body.
+        # IDs are taken from the URL, not the request body.
         data.pop("workout_id", None)
         data.pop("exercise_id", None)
 
@@ -216,7 +217,7 @@ def add_exercise_to_workout(workout_id, exercise_id):
     except IntegrityError:
         db.session.rollback()
         return error_response(
-            "This association already exists or violates a database constraint.",
+            "The workout-exercise association violates a database constraint.",
             409,
         )
 
