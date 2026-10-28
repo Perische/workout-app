@@ -1,0 +1,6 @@
+# SQLite database files
+*.db
+
+# Flask instance folders
+instance/
+server/instance/
