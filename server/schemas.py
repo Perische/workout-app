@@ -8,8 +8,6 @@ from marshmallow import (
     validate,
 )
 
-from server.models import Workout, Exercise, WorkoutExercise
-
 ma = Marshmallow()
 
 
