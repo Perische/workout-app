@@ -3,50 +3,100 @@ from flask_marshmallow import Marshmallow
 from marshmallow import (
     ValidationError,
     fields,
+    validate,
     validates,
     validates_schema,
-    validate,
 )
-
+from server.models import Exercise, Workout, WorkoutExercise
 ma = Marshmallow()
+
+
+class ExerciseSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        from server.models import Exercise
+
+        model = Exercise
+        load_instance = False
+
+    name = fields.String(
+        required=True,
+        validate=validate.Length(min=1, max=100),
+    )
+    category = fields.String(
+        required=True,
+        validate=validate.Length(min=1, max=50),
+    )
+    equipment_needed = fields.Boolean(required=True)
+
+    @validates("name")
+    def validate_name(self, value, **kwargs):
+        if not value.strip():
+            raise ValidationError("Exercise name cannot be blank.")
+
+    @validates("category")
+    def validate_category(self, value, **kwargs):
+        if not value.strip():
+            raise ValidationError("Exercise category cannot be blank.")
 
 
 class WorkoutExerciseSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
+        from server.models import WorkoutExercise
+
         model = WorkoutExercise
         include_fk = True
         load_instance = False
 
+    reps = fields.Integer(
+        required=False,
+        allow_none=True,
+        validate=validate.Range(min=1),
+    )
+    sets = fields.Integer(
+        required=False,
+        allow_none=True,
+        validate=validate.Range(min=1),
+    )
+    duration_seconds = fields.Integer(
+        required=False,
+        allow_none=True,
+        validate=validate.Range(min=1),
+    )
+
     exercise = fields.Nested(
-        lambda: ExerciseSchema(exclude=("workout_exercises",)),
+        ExerciseSchema,
         dump_only=True,
     )
 
     @validates_schema
-    def validate_positive_values(self, data, **kwargs):
-        for field_name in ("reps", "sets", "duration_seconds"):
-            value = data.get(field_name)
-            if value is not None and value <= 0:
-                raise ValidationError({
-                    field_name: ["Must be a positive integer."]
-                })
+    def validate_measurements(self, data, **kwargs):
+        measurement_fields = ("reps", "sets", "duration_seconds")
 
-        if not any(
-            data.get(field_name) is not None
-            for field_name in ("reps", "sets", "duration_seconds")
-        ):
+        if not any(data.get(field) is not None for field in measurement_fields):
             raise ValidationError(
-                "Provide reps, sets, or duration_seconds."
+                "Provide at least one of reps, sets, or duration_seconds."
             )
 
 
 class WorkoutSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
+        from server.models import Workout
+
         model = Workout
         load_instance = False
 
+    date = fields.Date(required=True)
+    duration_minutes = fields.Integer(
+        required=True,
+        validate=validate.Range(min=1),
+    )
+    notes = fields.String(
+        required=False,
+        allow_none=True,
+    )
+
     workout_exercises = fields.Nested(
-        WorkoutExerciseSchema(exclude=("workout",)),
+        WorkoutExerciseSchema(exclude=("exercise",)),
         many=True,
         dump_only=True,
     )
@@ -54,23 +104,14 @@ class WorkoutSchema(ma.SQLAlchemyAutoSchema):
     @validates("duration_minutes")
     def validate_duration(self, value, **kwargs):
         if value <= 0:
-            raise ValidationError("Duration must be positive.")
+            raise ValidationError("Workout duration must be positive.")
 
 
-class ExerciseSchema(ma.SQLAlchemyAutoSchema):
-    class Meta:
-        model = Exercise
-        load_instance = False
-
-    @validates("name")
-    def validate_name(self, value, **kwargs):
-        if not value or not value.strip():
-            raise ValidationError("Exercise name cannot be empty.")
-
-    @validates("category")
-    def validate_category(self, value, **kwargs):
-        if not value or not value.strip():
-            raise ValidationError("Exercise category cannot be empty.")
+ExerciseSchema.workout_exercises = fields.Nested(
+    WorkoutExerciseSchema(exclude=("exercise",)),
+    many=True,
+    dump_only=True,
+)
 
 
 workout_schema = WorkoutSchema()
